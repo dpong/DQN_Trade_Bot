@@ -3,10 +3,16 @@ import sys
 from agent.agent import Agent
 import caffeine
 
+if len(sys.argv) != 4:
+	print('Usage: python3 train.py [stock] [window] [episodes]')
+	exit()
+
 caffeine.on(display=False) #電腦不休眠
-ticker, window_size, episode_count = 'TSLA', 20, 50
+ticker, window_size, episode_count = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 init_cash = 1000000
-commission = 0.003  #千分之三的手續費      
+commission = 0.003  #千分之三的手續費
+stop_pct = 0.1      #停損%數
+safe_pct = 0.8      #現金安全水位
 #要給checkpoint個路徑
 c_path = "models/{}/training.ckpt".format(ticker)
 m_path = "models/{}/model.h5".format(ticker)
@@ -24,10 +30,10 @@ batch_size = 32
 n_close = 0
 
 for e in range(1, episode_count + 1):
-	total_profit = 0
+	total_profit, cash, total_reward = 0, init_cash, 0
 	inventory = []
-	cash = init_cash
-	total_reward = 0
+	previous_account = np.array([0,0])  #0是多倉位，1是空倉位
+	max_drawdown = 0
 	for t in range(window_size+1, l):         #前面的資料要來預熱一下
 		state = getState(data, t, window_size)
 		next_state = getState(data, t + 1, window_size)
@@ -39,7 +45,7 @@ for e in range(1, episode_count + 1):
 		reward = 0
 
 		#這邊交易的價格用當日的收盤價(t+1)代替，實際交易就是成交價格
-		if action == 1 and cash > data[t+1][n_close] * unit: # long
+		if action == 1 and safe_pct*cash > data[t+1][n_close] * unit: # long
 			if len(inventory) > 0 and inventory[0][1]=='short':
 				sold_price = inventory.pop(0)
 				price = data[t+1][n_close] * (1+commission)
@@ -58,10 +64,10 @@ for e in range(1, episode_count + 1):
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 			 	+ " | Bull: "+ str(len(inventory) * unit) + " | Long : " + formatPrice(price))
 		
-		elif action == 1 and cash <= data[t+1][n_close] * unit: # cash不足
-			pass
+		elif action == 1 and safe_pct*cash <= data[t+1][n_close] * unit: # cash不足
+			action = 0
 
-		elif action == 2 and cash > data[t+1][n_close] * unit: # short
+		elif action == 2 and safe_pct*cash > data[t+1][n_close] * unit: # short
 			if len(inventory) > 0 and inventory[0][1]=='long':
 				price = data[t+1][n_close] * (1-commission)
 				bought_price = inventory.pop(0)
@@ -80,8 +86,8 @@ for e in range(1, episode_count + 1):
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 			 	+ " | Bear: "+ str(len(inventory) * unit) + " | Short : " + formatPrice(price))
 
-		elif action == 2 and cash <= data[t+1][n_close] * unit: #手上沒現貨
-			pass
+		elif action == 2 and safe_pct*cash <= data[t+1][n_close] * unit: 
+			action = 0
 
 		elif action == 3 and len(inventory) > 0: #全部平倉
 			if inventory[0][1] == 'long':
@@ -103,36 +109,65 @@ for e in range(1, episode_count + 1):
 					+ " | Clean Inventory"+ ' | Profit: ' + formatPrice(profit)
 					+ " | Total Profit: " + formatPrice(total_profit))
 			inventory = [] #全部平倉
+			previous_account[:] = 0	
+		
+		elif action == 3 and len(inventory) == 0:
+			action = 0
 
 		if action == 0: #不動作
 			if len(inventory) > 0:
 				if inventory[0][1] == 'long':
 					account_profit, avg_price = get_long_account(inventory,data[t+1][n_close],commission)
+					account_diff = (account_profit - previous_account[0]) / avg_price
+					if account_diff <= -stop_pct and account_profit > 0:  #帳面獲利減少的懲罰
+						reward = account_diff * len(inventory)
+					elif account_profit / avg_price < -stop_pct:  #帳損超過的懲罰
+						reward = (account_profit / avg_price) * len(inventory)
 					print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-					+ " | Bull: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_profit * unit * len(inventory)))		
+					+ " | Bull: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_profit * unit * len(inventory)))	
+					previous_account[0] = account_profit
+					previous_account[1] = 0	
 				else:
 					account_profit, avg_price = get_short_account(inventory,data[t+1][n_close],commission)
+					account_diff = (account_profit - previous_account[1]) / avg_price
+					if account_diff <= -stop_pct and account_profit > 0:  #帳面獲利減少的懲罰
+						reward = account_diff * len(inventory)
+					elif account_profit / avg_price < -stop_pct:  #帳損超過的懲罰
+						reward = (account_profit / avg_price) * len(inventory)
 					print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-					+ " | Bear: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_profit * unit * len(inventory)))		
+					+ " | Bear: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_profit * unit * len(inventory)))	
+					previous_account[1] = account_profit
+					previous_account[0] = 0		
 			else:
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 				+ " | Nuetrual")
+				previous_account[:] = 0	
 
 		done = True if t == l - 1 else False
 		#放大reward來加速訓練
 		reward *= 100 
-		total_reward += reward
 		agent.memory.append((state, action, reward, next_state, done))
-		
+		#計算max drawdown
+		if len(inventory) > 0:
+			inventory_value = get_inventory_value(inventory,data[t+1][n_close],commission)
+			inventory_value *= unit
+			profolio = inventory_value + cash
+		else:
+			profolio = cash
+
+		if profolio - init_cash < 0:  #虧損時才做
+			drawdown = (profolio - init_cash) / init_cash
+			if drawdown < max_drawdown:
+				max_drawdown = drawdown
+
 		if done:
-			#agent.update_target_model()
-			print("-"*80)
+			print("-"*104)
 			print("Episode " + str(e) + "/" + str(episode_count)
 			+ " | Cash: " + formatPrice(cash) 
 			+ " | Total Profit: " + formatPrice(total_profit)
-			+ " | Return Ratio: " + str(round(total_profit/init_cash,2))
-			+ " | Total Reward: " + str(round(total_reward,2)))
-			print("-"*80)
+			+ " | Return Ratio: %.2f%%" % round(100*total_profit/init_cash,2)
+			+ " | Max DrawDown: %.2f%%" % round(max_drawdown*100,2))
+			print("-"*104)
 			if e == episode_count:
 				agent.model.save(m_path)
 				caffeine.off() #讓電腦回去休眠

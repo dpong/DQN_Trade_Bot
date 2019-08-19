@@ -5,7 +5,9 @@ import sys
 
 ticker, window_size = 'TSLA', 20
 init_cash = 1000000
-commission = 0.003  #千分之三的手續費      
+commission = 0.003  #千分之三的手續費
+stop_pct = 0.1      #停損%數
+safe_pct = 0.8      #現金安全水位      
 #要給checkpoint個路徑
 c_path = "models/{}/training.ckpt".format(ticker)
 #取得歷史資料
@@ -24,6 +26,7 @@ n_close = 0
 total_profit = 0
 inventory = []
 cash = init_cash
+max_drawdown = 0
 
 for t in range(window_size+1, l):         #前面的資料要來預熱一下
 	state = getState(data, t, window_size)
@@ -33,13 +36,10 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 		action = 3
 	else:
 		action = agent.act(state)
-	
-	
 	reward = 0
-	bought_price,sold_price = None, None
 
 	#這邊交易的價格用當日的收盤價(t+1)代替，實際交易就是成交價格
-	if action == 1 and cash > data[t+1][n_close] * unit: # long
+	if action == 1 and safe_pct*cash > data[t+1][n_close] * unit: # long
 		if len(inventory) > 0 and inventory[0][1]=='short':
 			sold_price = inventory.pop(0)
 			profit = (sold_price[0] - data[t+1][n_close]*(1+commission)) *unit
@@ -57,10 +57,10 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 			print(" Cash: " + formatPrice(cash)
 		 	+ " | Bull: "+ str(len(inventory) * unit) + " | Long : " + formatPrice(data[t+1][n_close]))
 		
-	elif action == 1 and cash <= data[t+1][n_close] * unit: # cash不足
-		pass
+	elif action == 1 and safe_pct*cash <= data[t+1][n_close] * unit: # cash不足
+		action = 0
 
-	elif action == 2 and cash > data[t+1][n_close] * unit: # short
+	elif action == 2 and safe_pct*cash > data[t+1][n_close] * unit: # short
 		if len(inventory) > 0 and inventory[0][1]=='long':
 			bought_price = inventory.pop(0)
 			profit = (data[t+1][n_close]*(1-commission) - bought_price[0])*unit
@@ -78,8 +78,8 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 			print(" Cash: " + formatPrice(cash)
 		 	+ " | Bear: "+ str(len(inventory) * unit) + " | Short : " + formatPrice(data[t+1][n_close]))
 
-	elif action == 2 and cash <= data[t+1][n_close] * unit: #手上沒現貨
-		pass
+	elif action == 2 and safe_pct*cash <= data[t+1][n_close] * unit: #手上沒現貨
+		action = 0
 
 	elif action == 3 and len(inventory) > 0: #全部平倉
 		if inventory[0][1] == 'long':
@@ -104,6 +104,9 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 				+ " | Total Profit: " + formatPrice(total_profit))
 		inventory = [] #全部平倉
 
+	elif action == 3 and len(inventory) == 0:
+			action = 0	
+
 	if action == 0: #不動作
 		if len(inventory) > 0:
 			if inventory[0][1] == 'long':
@@ -119,14 +122,27 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 			+ " | Nuetrual")
 
 	done = True if t == l - 1 else False
-		
+	#計算max drawdown
+	if len(inventory) > 0:
+		inventory_value = get_inventory_value(inventory,data[t+1][n_close],commission)
+		inventory_value *= unit
+		profolio = inventory_value + cash
+	else:
+		profolio = cash
+
+	if profolio - init_cash < 0:  #虧損時才做
+		drawdown = (profolio - init_cash) / init_cash
+		if drawdown < max_drawdown:
+			max_drawdown = drawdown
+
 	if done:
 		#agent.update_target_model()
-		print("-"*80)
+		print("-"*104)
 		print(
 		" Cash: " + formatPrice(cash) 
 		+ " | Total Profit: " + formatPrice(total_profit)
-		+ " | Return Ratio: " + str(round(total_profit/init_cash,2)))
-		print("-"*80)
+		+ " | Return Ratio: %.2f%%" % round(100*total_profit/init_cash,2)
+			+ " | Max DrawDown: %.2f%%" % round(max_drawdown*100,2))
+		print("-"*104)
 	
 

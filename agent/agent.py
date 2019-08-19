@@ -26,15 +26,16 @@ class Agent:
 		model.add(keras.layers.LSTM(units=self.neurons, input_shape=self.state_size, activation="sigmoid"))
 		model.add(keras.layers.Dropout(0.2))
 		model.add(keras.layers.Dense(units=self.neurons, activation="relu"))
+		model.add(keras.layers.Dense(units=0.5*self.neurons, activation="relu"))
 		model.add(keras.layers.Dense(self.action_size, activation="linear"))
 		model.compile(loss="mse", optimizer=keras.optimizers.Adam(lr=0.001))
 		#output為各action的機率(要轉換)
 		if os.path.exists(self.check_index):
 			#如果已經有訓練過，就接著load權重
-			print('-'*30+'{} Weights loaded!!'.format(model_name)+'-'*30)
+			print('-'*42+'{} Weights loaded!!'.format(model_name)+'-'*42)
 			model.load_weights(self.checkpoint_path)
 		else:
-			print('-'*31+'Create new model!!'+'-'*31)
+			print('-'*43+'Create new model!!'+'-'*43)
 		return model
 
 	def act(self, state):
@@ -44,7 +45,7 @@ class Agent:
 		options = self.model.predict(state)
 		return np.argmax(options[0]) #array裡面最大值的位置號
 		#return options
-
+		
 	def expReplay(self, batch_size): #用memory來訓練神經網路
 		mini_batch = []
 

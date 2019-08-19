@@ -4,8 +4,8 @@ import pandas_datareader as pdr
 import pandas as pd
 from scipy import special
 from sklearn import preprocessing
-scaler = preprocessing.StandardScaler()
 
+scaler = preprocessing.StandardScaler()
 # prints formatted price
 def formatPrice(n):
 	return ("-$" if n < 0 else "$") + "{0:.2f}".format(abs(n))
@@ -53,7 +53,6 @@ def get_long_account(inventory,close_price,commission):
 	avg_price = sum / len(inventory)
 	account_profit = close_price*(1-commission) - avg_price
 	return account_profit, avg_price
-	
 
 def get_short_account(inventory,close_price,commission):
 	sum = 0
@@ -61,7 +60,11 @@ def get_short_account(inventory,close_price,commission):
 		sum += order[0]
 	avg_price = sum / len(inventory)
 	account_profit = avg_price - close_price*(1+commission)
-	
 	return account_profit, avg_price
-	
 
+def get_inventory_value(inventory,close_price,commission):
+	if inventory[0][1] == 'long':
+		return close_price*(1-commission)*len(inventory)
+	else:
+		account_profit, avg_price = get_short_account(inventory,close_price,commission)
+		return (avg_price + account_profit)*len(inventory)
