@@ -38,10 +38,10 @@ class Agent:
 		#output為各action的機率(要轉換)
 		if os.path.exists(self.check_index):
 			#如果已經有訓練過，就接著load權重
-			print('-'*42+'{} Weights loaded!!'.format(model_name)+'-'*42)
+			print('-'*52+'{} Weights loaded!!'.format(model_name)+'-'*52)
 			model.load_weights(self.checkpoint_path)
 		else:
-			print('-'*43+'Create new model!!'+'-'*43)
+			print('-'*53+'Create new model!!'+'-'*53)
 		return model
 
 	#設定check point
