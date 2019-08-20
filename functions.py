@@ -27,7 +27,7 @@ def getState(data, t, n):
 
 #model的輸入值起始
 def get_shape(data,window_size):
-	input_shape = getState(data,window_size+1,window_size)
+	input_shape = getState(data,window_size,window_size)
 	neurons = input_shape.shape[1] * input_shape.shape[2] * 2 / 3
 	return input_shape.shape[1:], math.ceil(neurons)
 
