@@ -20,6 +20,8 @@ class Agent:
 		self.checkpoint_dir = os.path.dirname(self.checkpoint_path)
 		self.check_index = self.checkpoint_path + '.index'   #checkpoint裡面的檔案多加了一個.index
 		self.model = self._model('  Model')
+		if is_eval==False:
+			self.target_model = self._model(' Target')
 		
 	def _model(self, model_name):
 		model = keras.Sequential()
@@ -37,6 +39,9 @@ class Agent:
 		else:
 			print('-'*43+'Create new model!!'+'-'*43)
 		return model
+
+	def update_target_model(self):
+		self.target_model.set_weights(self.model.get_weights())
 
 	def act(self, state):
 		if not self.is_eval and np.random.rand() <= self.epsilon:
@@ -56,7 +61,7 @@ class Agent:
 			if done:
 				target[0,action] = reward
 			else:
-				t = self.model.predict(next_state)   
+				t = self.target_model.predict(next_state)   
 				target[0,action] = reward + self.gamma * np.amax(t[0])
 	
 			#checkpoint設定

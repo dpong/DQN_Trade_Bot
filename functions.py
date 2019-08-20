@@ -5,22 +5,23 @@ import pandas as pd
 from scipy import special
 from sklearn import preprocessing
 
-scaler = preprocessing.StandardScaler()
+scaler = preprocessing.MinMaxScaler((-1,1))
 # prints formatted price
 def formatPrice(n):
 	return ("-$" if n < 0 else "$") + "{0:.2f}".format(abs(n))
 
 #state資料標準化
-def standardscale(x):
+def minmaxscale(x):
 	return scaler.fit_transform(x)
 
 # returns an n-day state representation ending at time t
 def getState(data, t, n):
-	block = data[t-n-1:t]
-	block_1 = block[1:]
-	block_0 = block[:n]
-	res = block_1 - block_0
-	res = standardscale(res)
+	#block = data[t-n-1:t]
+	block = data[t+1-n:t+1]
+	#block_1 = np.log10(block[1:])
+	#block_0 = np.log10(block[:n])
+	#res = block_1 - block_0
+	res = minmaxscale(block)
 	return np.array([res])  #修正input形狀
 	
 

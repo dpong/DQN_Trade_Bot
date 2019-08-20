@@ -32,7 +32,7 @@ n_close = 0
 for e in range(1, episode_count + 1):
 	total_profit, cash, total_reward = 0, init_cash, 0
 	inventory = []
-	previous_account = np.array([0,0])  #0是多倉位，1是空倉位
+	highest_value = np.array([0,0])  #0是多倉位，1是空倉位
 	max_drawdown = 0
 	for t in range(window_size+1, l):         #前面的資料要來預熱一下
 		state = getState(data, t, window_size)
@@ -55,7 +55,8 @@ for e in range(1, episode_count + 1):
 				cash += profit + sold_price[0] * unit
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 				+ " | Bear: "+ str(len(inventory) * unit) +" | Long: " + formatPrice(price) 
-				+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit))
+				+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit)
+				+ " | Reward: " + str(round(reward,2)))
 			else:
 				price = data[t+1][n_close] * (1+commission)
 				cost = price * unit
@@ -77,7 +78,8 @@ for e in range(1, episode_count + 1):
 				cash += profit + bought_price[0] * unit
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 				+ " | Bull: "+ str(len(inventory) * unit) +" | Short: " + formatPrice(price) 
-				+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit))
+				+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit)
+				+ " | Reward: " + str(round(reward,2)))
 			else: #放空
 				price = data[t+1][n_close] * (1-commission)
 				cost = price * unit #做空一樣要付出成本，保證金的概念
@@ -98,7 +100,8 @@ for e in range(1, episode_count + 1):
 				cash += avg_price * len(inventory) * unit + profit
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 					+ " | Clean Inventory"+ ' | Profit: ' + formatPrice(profit)
-					+ " | Total Profit: " + formatPrice(total_profit))
+					+ " | Total Profit: " + formatPrice(total_profit)
+					+ " | Reward: " + str(round(reward,2)))
 			else:
 				account_profit, avg_price = get_short_account(inventory,data[t+1][n_close],commission)
 				reward = (account_profit / avg_price) * len(inventory)
@@ -107,9 +110,10 @@ for e in range(1, episode_count + 1):
 				cash += avg_price * len(inventory) * unit + profit
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 					+ " | Clean Inventory"+ ' | Profit: ' + formatPrice(profit)
-					+ " | Total Profit: " + formatPrice(total_profit))
+					+ " | Total Profit: " + formatPrice(total_profit)
+					+ " | Reward: " + str(round(reward,2)))
 			inventory = [] #全部平倉
-			previous_account[:] = 0	
+			highest_value[:] = 0	
 		
 		elif action == 3 and len(inventory) == 0:
 			action = 0
@@ -118,34 +122,43 @@ for e in range(1, episode_count + 1):
 			if len(inventory) > 0:
 				if inventory[0][1] == 'long':
 					account_profit, avg_price = get_long_account(inventory,data[t+1][n_close],commission)
-					account_diff = (account_profit - previous_account[0]) / avg_price
-					if account_diff <= -stop_pct and account_profit > 0:  #帳面獲利減少的懲罰
-						reward = account_diff * len(inventory)
+					account_value = account_profit * unit * len(inventory)   #價差乘上有多少單位才是價值
+					avg_value = avg_price * unit * len(inventory)
+					value_diff = (account_value - highest_value[0]) / avg_value
+					if account_value > highest_value[0]: 
+						highest_value[0] = account_value
+					elif value_diff <= -stop_pct and highest_value[0] > 0:  #帳面獲利減少的懲罰
+						reward = value_diff
 					elif account_profit / avg_price < -stop_pct:  #帳損超過的懲罰
-						reward = (account_profit / avg_price) * len(inventory)
+						reward = account_value / avg_value
 					print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-					+ " | Bull: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_profit * unit * len(inventory)))	
-					previous_account[0] = account_profit
-					previous_account[1] = 0	
+					+ " | Bull: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_value)
+					+ " | Highest: " + str(round(highest_value[0],2))
+					+ " | Reward: " + str(round(reward,2)))	
+					highest_value[1] = 0	
 				else:
 					account_profit, avg_price = get_short_account(inventory,data[t+1][n_close],commission)
-					account_diff = (account_profit - previous_account[1]) / avg_price
-					if account_diff <= -stop_pct and account_profit > 0:  #帳面獲利減少的懲罰
-						reward = account_diff * len(inventory)
-					elif account_profit / avg_price < -stop_pct:  #帳損超過的懲罰
-						reward = (account_profit / avg_price) * len(inventory)
+					account_value = account_profit * unit * len(inventory)
+					avg_value = avg_price * unit * len(inventory)
+					value_diff = (account_value - highest_value[1]) / avg_value
+					if account_value > highest_value[1]: 
+						highest_value[1] = account_value
+					elif value_diff <= -stop_pct and highest_value[1] > 0:  #帳面獲利減少的懲罰
+						reward = value_diff
+					elif account_value / avg_value < -stop_pct:  #帳損超過的懲罰
+						reward = account_value / avg_value
 					print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-					+ " | Bear: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_profit * unit * len(inventory)))	
-					previous_account[1] = account_profit
-					previous_account[0] = 0		
+					+ " | Bear: "+ str(len(inventory) * unit) + ' | Potential: ' + formatPrice(account_value)
+					+ " | Highest: " + str(round(highest_value[1],2))
+					+ " | Reward: " + str(round(reward,2)))	
+					highest_value[0] = 0		
 			else:
 				print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
 				+ " | Nuetrual")
-				previous_account[:] = 0	
+				highest_value[:] = 0	
 
 		done = True if t == l - 1 else False
-		#放大reward來加速訓練
-		reward *= 100 
+		total_reward += reward
 		agent.memory.append((state, action, reward, next_state, done))
 		#計算max drawdown
 		if len(inventory) > 0:
@@ -161,12 +174,14 @@ for e in range(1, episode_count + 1):
 				max_drawdown = drawdown
 
 		if done:
+			agent.update_target_model()
 			print("-"*104)
 			print("Episode " + str(e) + "/" + str(episode_count)
 			+ " | Cash: " + formatPrice(cash) 
 			+ " | Total Profit: " + formatPrice(total_profit)
 			+ " | Return Ratio: %.2f%%" % round(100*total_profit/init_cash,2)
-			+ " | Max DrawDown: %.2f%%" % round(max_drawdown*100,2))
+			+ " | Max DrawDown: %.2f%%" % round(-max_drawdown*100,2)
+			+ " | Total Reward: " + str(round(total_reward,2)))
 			print("-"*104)
 			if e == episode_count:
 				agent.model.save(m_path)

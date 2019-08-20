@@ -142,7 +142,7 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 		" Cash: " + formatPrice(cash) 
 		+ " | Total Profit: " + formatPrice(total_profit)
 		+ " | Return Ratio: %.2f%%" % round(100*total_profit/init_cash,2)
-			+ " | Max DrawDown: %.2f%%" % round(max_drawdown*100,2))
+			+ " | Max DrawDown: %.2f%%" % round(-max_drawdown*100,2))
 		print("-"*104)
 	
 
