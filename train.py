@@ -26,7 +26,6 @@ input_shape, neurons = get_shape(data[:window_size+1],window_size)
 agent = Agent(ticker, input_shape, neurons, c_path)
 
 l = len(data) -1
-batch_size = 32
 n_close = 0
 
 for e in range(1, episode_count + 1):
@@ -159,7 +158,7 @@ for e in range(1, episode_count + 1):
 
 		done = True if t == l - 1 else False
 		total_reward += reward
-		agent.memory.append((state, action, reward, next_state, done))
+		agent.append_sample(state, action, reward, next_state, done)
 		#計算max drawdown
 		if len(inventory) > 0:
 			inventory_value = get_inventory_value(inventory,data[t+1][n_close],commission)
@@ -186,6 +185,7 @@ for e in range(1, episode_count + 1):
 			if e == episode_count:
 				agent.model.save(m_path)
 				caffeine.off() #讓電腦回去休眠
-
-		if len(agent.memory) > batch_size:
-			agent.expReplay(batch_size)
+		
+		if agent.memory.tree.n_entries > agent.batch_size:
+			agent.train_model()
+			
