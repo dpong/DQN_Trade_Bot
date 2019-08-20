@@ -16,14 +16,8 @@ def minmaxscale(x):
 
 # returns an n-day state representation ending at time t
 def getState(data, t, n):
-	#block = data[t-n-1:t]
-	block = data[t+1-n:t+1]
-	#block_1 = np.log10(block[1:])
-	#block_0 = np.log10(block[:n])
-	#res = block_1 - block_0
-	res = minmaxscale(block)
+	res = minmaxscale(data[t+1-n:t+1])
 	return np.array([res])  #修正input形狀
-	
 
 #model的輸入值起始
 def get_shape(data,window_size):
