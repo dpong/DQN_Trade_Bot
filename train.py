@@ -72,7 +72,7 @@ for e in range(1, episode_count + 1):
 		#計算max drawdown
 		if len(inventory) > 0:
 			inventory_value = get_inventory_value(inventory,data[t+1][n_close],trading.commission)
-			inventory_value *= unit
+			inventory_value *= trading.unit
 			profolio = inventory_value + cash
 		else:
 			profolio = cash
