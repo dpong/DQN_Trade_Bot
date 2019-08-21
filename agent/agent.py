@@ -1,10 +1,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
-from tensorflow import keras
 import os, random
 from collections import deque
 import numpy as np
 from agent.prioritized_memory import Memory
+from agent.dueling_model import Dueling_model
 
 class Agent:
 	def __init__(self, ticker, state_size, neurons, m_path, is_eval=False):
@@ -27,14 +27,10 @@ class Agent:
 			self.target_model = self._model(' Target')
 		self.cp_callback = self._check_point()
 		
+		
 	def _model(self, model_name):
-		model = keras.Sequential()
-		model.add(keras.layers.LSTM(units=self.neurons, input_shape=self.state_size, activation="sigmoid"))
-		model.add(keras.layers.Dropout(0.2))
-		model.add(keras.layers.Dense(units=2*self.neurons, activation="relu"))
-		model.add(keras.layers.Dense(units=self.neurons, activation="relu"))
-		model.add(keras.layers.Dense(self.action_size, activation="linear"))
-		model.compile(loss="mse", optimizer=keras.optimizers.Adam(lr=0.001))
+		ddqn = Dueling_model()
+		model = ddqn.build_model(self.state_size,self.neurons, self.action_size)
 		#output為各action的機率(要轉換)
 		if os.path.exists(self.check_index):
 			#如果已經有訓練過，就接著load權重
