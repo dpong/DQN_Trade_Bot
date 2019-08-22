@@ -31,7 +31,6 @@ class Agent:
 	def _model(self, model_name):
 		ddqn = Dueling_model()
 		model = ddqn.build_model(self.state_size,self.neurons, self.action_size)
-		#output為各action的機率(要轉換)
 		if os.path.exists(self.check_index):
 			#如果已經有訓練過，就接著load權重
 			print('-'*52+'{} Weights loaded!!'.format(model_name)+'-'*52)
@@ -48,6 +47,7 @@ class Agent:
 		verbose=0)
 		return cp_callback
 
+	#把model的權重傳給target model
 	def update_target_model(self):
 		self.target_model.set_weights(self.model.get_weights())
 
@@ -59,37 +59,51 @@ class Agent:
 		return np.argmax(options[0]) #array裡面最大值的位置號
 		#return options
 
+	# Prioritized experience replay
 	# save sample (error,<s,a,r,s'>) to the replay memory
 	def append_sample(self, state, action, reward, next_state, done):
-		target, error = self.get_target_error(state, action, reward, next_state, done)
+		target, error = self.get_target_n_error(state, action, reward, next_state, done)
 		self.memory.add(error,(state, action, reward, next_state, done))
 
-	# pick samples from prioritized replay memory (with batch_size)
 	def train_model(self):
 		if self.epsilon > self.epsilon_min:
-			self.epsilon *= self.epsilon_decay #貪婪度遞減  
+			self.epsilon *= self.epsilon_decay  #貪婪度遞減
 
+		# pick samples from prioritized replay memory (with batch_size)
 		mini_batch, idxs, is_weights = self.memory.sample(self.batch_size)
 
 		for i in range(self.batch_size):
-			target, error = self.get_target_error(mini_batch[i][0],mini_batch[i][1],mini_batch[i][2],mini_batch[i][3],mini_batch[i][4])
+			target, error = self.get_target_n_error(
+				mini_batch[i][0], #state
+				mini_batch[i][1], #action
+				mini_batch[i][2], #reward
+				mini_batch[i][3], #next_state
+				mini_batch[i][4]  #done
+				)
+
 			idx = idxs[i] # update priority
 			self.memory.update(idx, error)
-			#train
+			#train model
 			self.model.fit(mini_batch[i][0], target, epochs = 1,
 			 verbose=0, callbacks = [self.cp_callback])
 
-	#迭代Q值
-	def get_target_error(self, state, action, reward, next_state, done):
-		target = self.model.predict(state)
-		old_val = target[0,action]
-		if done:
-			target[0,action] = reward
-		else:
-			t = self.target_model.predict(next_state)   
-			target[0,action] = reward + self.gamma * np.amax(t[0])
-		
-		error = abs(old_val - target[0,action])
-		return target, error
+	# 更新Q和error
+	def get_target_n_error(self, state, action, reward, next_state, done):
+		#主model動作
+		result = self.model.predict(state)
+		old_result = result[0,action]
+		next_result = self.model.predict(next_state)
+		next_action = np.argmax(next_result[0])
+		#target model動作
+		t_next_result = self.target_model.predict(next_state)
+		#更新Q值: Double DQN的概念
+		result[0,action] = reward
+		if not done:
+			result[0,action] += self.gamma * t_next_result[0,next_action]
+		#計算error給PER
+		error = abs(old_val - result[0,action])
+		return result, error
+
+
 
 	
