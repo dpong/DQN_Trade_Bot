@@ -44,19 +44,37 @@ for e in range(1, episode_count + 1):
 		trading.reward = 0
 
 		#這邊交易的價格用當日的收盤價(t+1)代替，實際交易就是成交價格
-		if action == 1:
-			cash, inventory, total_profit = trading._long(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+		if action == 1 and len(inventory) > 0 and inventory[0][1]=='short':
+			cash, inventory, total_profit = trading._long_clean(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
 		
-		elif action == 1 and trading.safe_margin * cash <= data[t+1][n_close] * unit: # cash不足
-			action = 0
+		elif action == 1 and len(inventory) > 0 and inventory[0][1]=='long':
+			if trading.safe_margin * cash > data[t+1][n_close] * unit:
+				cash, inventory, total_profit = trading._long_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+			else:
+				action = 0
 
-		elif action == 2:
-			cash, inventory, total_profit = trading._short(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+		elif action == 1 and len(inventory) == 0:
+			if trading.safe_margin * cash > data[t+1][n_close] * unit:
+				cash, inventory, total_profit = trading._long_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+			else:
+				action = 0
 
-		elif action == 2 and trading.safe_margin * cash <= data[t+1][n_close] * unit: # cash不足
-			action = 0
+		elif action == 2 and len(inventory) > 0 and inventory[0][1]=='long':
+			cash, inventory, total_profit = trading._short_clean(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
 
-		elif action == 3:
+		elif action == 2 and len(inventory) > 0 and inventory[0][1]=='short':
+			if trading.safe_margin * cash > data[t+1][n_close] * unit:
+				cash, inventory, total_profit = trading._short_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+			else:
+				action = 0
+		
+		elif action == 2 and len(inventory) == 0:
+			if trading.safe_margin * cash > data[t+1][n_close] * unit:
+				cash, inventory, total_profit = trading._short_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+			else:
+				action = 0
+
+		elif action == 3 and len(inventory) > 0:
 			cash, inventory, total_profit = trading._clean_inventory(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
 		
 		elif action == 3 and len(inventory) == 0:

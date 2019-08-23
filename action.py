@@ -49,51 +49,56 @@ class Action():
             self.highest_value[:] = 0
     
 
-    def _long(self,close,cash,inventory,total_profit,e,episode_count,t,l):
+    def _long_clean(self,close,cash,inventory,total_profit,e,episode_count,t,l):
         price = close * (1+self.commission)
-        if len(inventory) > 0 and inventory[0][1]=='short': #沖銷
-            sold_price = inventory.pop(0)
-            profit = (sold_price[0] - price) * self.unit
-            total_profit += profit
-            self.reward = profit / (sold_price[0] * self.unit)
-            cash += profit + sold_price[0] * self.unit
-            print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-			+ " | Bear: "+ str(len(inventory) * self.unit) +" | Long: " + formatPrice(price) 
-			+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit)
-			+ " | Reward: " + str(round(self.reward,2)))
-        elif self.safe_margin * cash > price * self.unit:
-            cost = price * self.unit
-            cash -= cost
-            inventory.append([price,'long']) #存入進場資訊
-            print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-			+ " | Bull: "+ str(len(inventory) * self.unit) + " | Long : " + formatPrice(price))
-            self.action_number = 1
+        sold_price = inventory.pop(0)
+        profit = (sold_price[0] - price) * self.unit
+        total_profit += profit
+        self.reward = profit / (sold_price[0] * self.unit)
+        cash += profit + sold_price[0] * self.unit
+        print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
+		+ " | Bear: "+ str(len(inventory) * self.unit) +" | Long: " + formatPrice(price) 
+		+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit)
+		+ " | Reward: " + str(round(self.reward,2)))
+            
+        return cash, inventory, total_profit
+
+    def _long_new(self,close,cash,inventory,total_profit,e,episode_count,t,l):
+        price = close * (1+self.commission)
+        cost = price * self.unit
+        cash -= cost
+        inventory.append([price,'long']) #存入進場資訊
+        print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
+		+ " | Bull: "+ str(len(inventory) * self.unit) + " | Long : " + formatPrice(price))
         
         return cash, inventory, total_profit
 
-    def _short(self,close,cash,inventory,total_profit,e,episode_count,t,l):
+    def _short_clean(self,close,cash,inventory,total_profit,e,episode_count,t,l):
         price = close * (1-self.commission)
-        if len(inventory) > 0 and inventory[0][1]=='long':
-            bought_price = inventory.pop(0)
-            profit = (price - bought_price[0]) * self.unit
-            total_profit += profit
-            self.reward = profit / (bought_price[0] * self.unit)
-            cash += profit + bought_price[0] * self.unit
-            print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-			+ " | Bull: "+ str(len(inventory) * self.unit) +" | Short: " + formatPrice(price) 
-			+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit)
-			+ " | Reward: " + str(round(self.reward,2)))
-        elif self.safe_margin * cash > price * self.unit:
-            cost = close * self.unit #做空一樣要付出成本，保證金的概念
-            cash -= cost
-            inventory.append([price,'short']) #存入進場資訊
-            print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-			+ " | Bear: "+ str(len(inventory) * self.unit) + " | Short : " + formatPrice(price))
+        bought_price = inventory.pop(0)
+        profit = (price - bought_price[0]) * self.unit
+        total_profit += profit
+        self.reward = profit / (bought_price[0] * self.unit)
+        cash += profit + bought_price[0] * self.unit
+        print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
+		+ " | Bull: "+ str(len(inventory) * self.unit) +" | Short: " + formatPrice(price) 
+		+ " | Profit: " + formatPrice(profit)+ " | Total Profit: " + formatPrice(total_profit)
+		+ " | Reward: " + str(round(self.reward,2)))
+
+        return cash, inventory, total_profit
+
+    def _short_new(self,close,cash,inventory,total_profit,e,episode_count,t,l):
+        price = close * (1-self.commission)
+        cost = close * self.unit #做空一樣要付出成本，保證金的概念
+        cash -= cost
+        inventory.append([price,'short']) #存入進場資訊
+        print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
+		+ " | Bear: "+ str(len(inventory) * self.unit) + " | Short : " + formatPrice(price))
 
         return cash, inventory, total_profit
 
     def _clean_inventory(self,close,cash,inventory,total_profit,e,episode_count,t,l):
-        if len(inventory) > 0 and inventory[0][1] == 'long':
+        if  inventory[0][1] == 'long':
             account_profit, avg_price = get_long_account(inventory,close,self.commission)
             self.reward = (account_profit / avg_price) * len(inventory)
             profit = account_profit * self.unit * len(inventory)
@@ -103,7 +108,7 @@ class Action():
 				+ " | Clean Inventory"+ ' | Profit: ' + formatPrice(profit)
 				+ " | Total Profit: " + formatPrice(total_profit)
 				+ " | Reward: " + str(round(self.reward,2)))
-        elif len(inventory) > 0 and inventory[0][1] == 'short':
+        elif inventory[0][1] == 'short':
             account_profit, avg_price = get_short_account(inventory,close,self.commission)
             self.reward = (account_profit / avg_price) * len(inventory)
             profit = account_profit * self.unit * len(inventory)

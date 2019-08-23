@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import tensorflow as tf
 import os, random
-from collections import deque
 import numpy as np
 from agent.prioritized_memory import Memory
 from agent.dueling_model import Dueling_model
@@ -48,9 +47,7 @@ class Agent:
 	def update_target_model(self):
 		self.target_model.set_weights(self.model.get_weights())
 
-	def act(self, state, epsilon=0.001):
-		if not self.is_eval and np.random.random() < epsilon:
-			return random.randrange(self.action_size)
+	def act(self, state):
 		# 有NoisyNet在決定探索能力
 		options = self.model.predict(state)
 		return np.argmax(options[0]) # array裡面最大值的位置號
