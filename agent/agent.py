@@ -14,9 +14,6 @@ class Agent:
 		self.memory_size = 1000 #記憶長度
 		self.memory = Memory(self.memory_size)
 		self.gamma = 0.95
-		self.epsilon = 1
-		self.epsilon_min = 0.01
-		self.epsilon_decay = 0.995
 		self.batch_size = 32
 		self.is_eval = is_eval
 		self.checkpoint_path = m_path
@@ -30,7 +27,7 @@ class Agent:
 		
 	def _model(self, model_name):
 		ddqn = Dueling_model()
-		model = ddqn.build_model(self.state_size,self.neurons, self.action_size)
+		model = ddqn.build_model(self.state_size, self.neurons, self.action_size)
 		if os.path.exists(self.check_index):
 			#如果已經有訓練過，就接著load權重
 			print('-'*52+'{} Weights loaded!!'.format(model_name)+'-'*52)
@@ -51,13 +48,12 @@ class Agent:
 	def update_target_model(self):
 		self.target_model.set_weights(self.model.get_weights())
 
-	def act(self, state):
-		if not self.is_eval and np.random.rand() <= self.epsilon:
+	def act(self, state, epsilon=0.001):
+		if not self.is_eval and np.random.random() < epsilon:
 			return random.randrange(self.action_size)
-		
+		# 有NoisyNet在決定探索能力
 		options = self.model.predict(state)
-		return np.argmax(options[0]) #array裡面最大值的位置號
-		#return options
+		return np.argmax(options[0]) # array裡面最大值的位置號
 
 	# Prioritized experience replay
 	# save sample (error,<s,a,r,s'>) to the replay memory
@@ -66,9 +62,6 @@ class Agent:
 		self.memory.add(error,(state, action, reward, next_state, done))
 
 	def train_model(self):
-		if self.epsilon > self.epsilon_min:
-			self.epsilon *= self.epsilon_decay  #貪婪度遞減
-
 		# pick samples from prioritized replay memory (with batch_size)
 		mini_batch, idxs, is_weights = self.memory.sample(self.batch_size)
 
@@ -101,7 +94,7 @@ class Agent:
 		if not done:
 			result[0,action] += self.gamma * t_next_result[0,next_action]
 		#計算error給PER
-		error = abs(old_val - result[0,action])
+		error = abs(old_result - result[0,action])
 		return result, error
 
 

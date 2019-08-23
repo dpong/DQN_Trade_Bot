@@ -10,7 +10,6 @@ class Action():
         self.stop_pct = 0.1  #停損%數
 
     def _hold(self,close,cash,inventory,e,episode_count,t,l):
-        self.action_number = 0
         if len(inventory) > 0:
             if inventory[0][1] == 'long':
                 account_profit, avg_price = get_long_account(inventory,close,self.commission)
@@ -44,9 +43,9 @@ class Action():
 				+ " | Highest: " + str(round(self.highest_value[1],2))
 				+ " | Reward: " + str(round(self.reward,2)))
                 self.highest_value[0] = 0
-        else:
+        if len(inventory) == 0:
             print("Ep " + str(e) + "/" + str(episode_count)+" %.2f%%" % round(t*(100/l),2) + " Cash: " + formatPrice(cash)
-			+ " | Nuetrual")
+		    + " | Nuetrual")
             self.highest_value[:] = 0
     
 

@@ -66,8 +66,13 @@ for e in range(1, episode_count + 1):
 			trading._hold(data[t+1][n_close] , cash, inventory, e, episode_count,t,l)
 				
 		done = True if t == l - 1 else False
+		trading.reward *= 10 #稍微放大尺度
 		total_reward += trading.reward
 		agent.append_sample(state, action, trading.reward, next_state, done)
+
+		#訓練過程分5段來更新traget_model
+		if t % int(l/5) == 0:
+			agent.update_target_model()
 
 		#計算max drawdown
 		if len(inventory) > 0:
@@ -76,14 +81,12 @@ for e in range(1, episode_count + 1):
 			profolio = inventory_value + cash
 		else:
 			profolio = cash
-
 		if profolio - init_cash < 0:  #虧損時才做
 			drawdown = (profolio - init_cash) / init_cash
 			if drawdown < max_drawdown:
 				max_drawdown = drawdown
 
 		if done:
-			agent.update_target_model()
 			print("-"*124)
 			print("Episode " + str(e) + "/" + str(episode_count)
 			+ " | Cash: " + formatPrice(cash) 
