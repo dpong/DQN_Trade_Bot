@@ -4,7 +4,7 @@ from action import Action
 import sys
 
 
-ticker, window_size = 'TSLA', 30
+ticker, window_size = 'TSLA', 20
 init_cash = 1000000
 commission = 0.003  #千分之三的手續費
 stop_pct = 0.1      #停損%數
@@ -12,7 +12,7 @@ safe_pct = 0.8      #現金安全水位
 #要給checkpoint個路徑
 c_path = "models/{}/training.ckpt".format(ticker)
 #取得歷史資料
-df = pdr.DataReader('{}'.format(ticker),'yahoo',start='2018-1-1',end='2019-1-1')
+df = pdr.DataReader('{}'.format(ticker),'yahoo',start='2018-1-1',end='2019-8-1')
 unit = get_unit(df['Close'].mean(),init_cash) #目前都是操作固定單位
 trading = Action(unit)
 #資料整合轉換
@@ -41,19 +41,38 @@ for t in range(window_size+1, l):         #前面的資料要來預熱一下
 		action = agent.act(state)
 	reward = 0
 
-	if action == 1:
-		cash, inventory, total_profit = trading._long(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+	#這邊交易的價格用當日的收盤價(t+1)代替，實際交易就是成交價格
+	if action == 1 and len(inventory) > 0 and inventory[0][1]=='short':
+		cash, inventory, total_profit = trading._long_clean(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
 		
-	elif action == 1 and trading.safe_margin * cash <= data[t+1][n_close] * unit: # cash不足
-		action = 0
+	elif action == 1 and len(inventory) > 0 and inventory[0][1]=='long':
+		if trading.safe_margin * cash > data[t+1][n_close] * unit:
+			cash, inventory, total_profit = trading._long_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+		else:
+			action = 0
 
-	elif action == 2:
-		cash, inventory, total_profit = trading._short(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+	elif action == 1 and len(inventory) == 0:
+		if trading.safe_margin * cash > data[t+1][n_close] * unit:
+			cash, inventory, total_profit = trading._long_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+		else:
+			action = 0
 
-	elif action == 2 and trading.safe_margin * cash <= data[t+1][n_close] * unit: # cash不足
-		action = 0
+	elif action == 2 and len(inventory) > 0 and inventory[0][1]=='long':
+		cash, inventory, total_profit = trading._short_clean(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
 
-	elif action == 3:
+	elif action == 2 and len(inventory) > 0 and inventory[0][1]=='short':
+		if trading.safe_margin * cash > data[t+1][n_close] * unit:
+			cash, inventory, total_profit = trading._short_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+		else:
+			action = 0
+		
+	elif action == 2 and len(inventory) == 0:
+		if trading.safe_margin * cash > data[t+1][n_close] * unit:
+			cash, inventory, total_profit = trading._short_new(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
+		else:
+			action = 0
+
+	elif action == 3 and len(inventory) > 0:
 		cash, inventory, total_profit = trading._clean_inventory(data[t+1][n_close] , cash, inventory, total_profit, e, episode_count,t,l)
 		
 	elif action == 3 and len(inventory) == 0:

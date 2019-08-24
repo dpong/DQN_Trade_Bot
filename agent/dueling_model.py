@@ -9,14 +9,16 @@ from agent.Noisynet import NoisyDense
 #Tensorflow 2.0 Beta
 
 class Dueling_model():
-    def build_model(self, state_size, neurons, action_size):
+    def build_model(self, state_size, neurons, action_size, training):
         #前面的LSTM層
         state_input = Input(shape=state_size)
         lstm1 = LSTM(neurons, activation='sigmoid',return_sequences=False)(state_input)
 
         #連結層
         d1 = Dense(neurons,activation='relu')(lstm1)
-        d2 = Dense(neurons,activation='relu')(d1)
+        d1_plus1 = Dense(neurons,activation='relu')(d1)
+        d1_plus2 = Dense(neurons,activation='relu')(d1_plus1)
+        d2 = Dense(neurons,activation='relu')(d1_plus2)
         
         #dueling
         d3_a = Dense(neurons/2, activation='relu')(d2)
@@ -28,7 +30,7 @@ class Dueling_model():
         q = Add()([value, advantage])
 
         # noisy
-        noise = NoisyDense(action_size, bias=True, training=True)
+        noise = NoisyDense(action_size, True, training)
         final = noise(q)
 
         #最後compile

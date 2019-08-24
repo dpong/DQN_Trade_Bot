@@ -104,6 +104,10 @@ for e in range(1, episode_count + 1):
 			if drawdown < max_drawdown:
 				max_drawdown = drawdown
 
+
+		if agent.memory.tree.n_entries > agent.batch_size:
+			agent.train_model()
+
 		if done:
 			print("-"*124)
 			print("Episode " + str(e) + "/" + str(episode_count)
@@ -114,9 +118,7 @@ for e in range(1, episode_count + 1):
 			+ " | Total Reward: " + str(round(total_reward,2)))
 			print("-"*124)
 			if e == episode_count:
-				agent.model.save(m_path)
 				caffeine.off() #讓電腦回去休眠
 		
-		if agent.memory.tree.n_entries > agent.batch_size:
-			agent.train_model()
+		
 			
